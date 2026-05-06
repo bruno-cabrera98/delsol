@@ -111,6 +111,18 @@ interface DownloadsContextValue {
 
 const DownloadsContext = createContext<DownloadsContextValue | null>(null)
 
+// Route cdn.dl.uy URLs through our Cloudflare proxy so downloads work regardless
+// of CORS headers or cross-origin redirects on the CDN.
+function cdnProxyUrl(source_mp3: string): string {
+  try {
+    const u = new URL(source_mp3)
+    if (u.hostname === 'cdn.dl.uy') {
+      return '/dlproxy' + u.pathname + u.search
+    }
+  } catch { /* not a valid URL, use as-is */ }
+  return source_mp3
+}
+
 export function DownloadsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(downloadsReducer, {
     downloads: [],
@@ -162,9 +174,11 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
 
     dispatch({ type: 'ADD_PENDING', entry })
 
-    // Try direct fetch first — works when the CDN has CORS headers
+    // Route CDN audio through our same-origin proxy to avoid CORS / redirect issues.
+    const downloadUrl = cdnProxyUrl(episode.source_mp3)
+
     try {
-      const res = await fetch(episode.source_mp3)
+      const res = await fetch(downloadUrl)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
       const contentLength = res.headers.get('Content-Length')
@@ -186,33 +200,10 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       const blob = new Blob(chunks, { type: 'audio/mpeg' })
       await addDownload({ ...entry, fileSizeBytes: blob.size }, blob)
       dispatch({ type: 'ADD', entry: { ...entry, fileSizeBytes: blob.size } })
-      return
-    } catch (directErr) {
-      console.warn('Direct fetch failed, trying service worker cache:', directErr)
-    }
-
-    // Fallback: ask the service worker to cache with no-cors (no CORS headers needed)
-    const sw = navigator.serviceWorker?.controller
-    if (!sw) {
-      console.error('Service worker not available for download fallback')
+    } catch (err) {
+      console.error('Download failed:', err)
       dispatch({ type: 'ERROR_PENDING', episodeId: id })
-      return
     }
-
-    await new Promise<void>((resolve) => {
-      const channel = new MessageChannel()
-      channel.port1.onmessage = async (e) => {
-        if (e.data?.type === 'AUDIO_CACHED') {
-          await addDownload(entry)
-          dispatch({ type: 'ADD', entry })
-        } else {
-          console.error('SW audio cache error:', e.data?.error)
-          dispatch({ type: 'ERROR_PENDING', episodeId: id })
-        }
-        resolve()
-      }
-      sw.postMessage({ type: 'CACHE_AUDIO', url: episode.source_mp3, episodeId: id }, [channel.port2])
-    })
   }, [state.statuses])
 
   const removeDownload = useCallback(async (episodeId: string) => {
