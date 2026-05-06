@@ -39,9 +39,9 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // API requests: stale-while-revalidate
+  // API requests: network-first, fall back to cache when offline
   if (url.hostname === 'delsol.uy' && url.pathname.startsWith('/apisol/')) {
-    event.respondWith(staleWhileRevalidate(request, API_CACHE))
+    event.respondWith(networkFirstWithFallback(request, API_CACHE))
     return
   }
 
@@ -79,21 +79,19 @@ async function shellCacheFirst(request) {
   }
 }
 
-async function staleWhileRevalidate(request, cacheName) {
+async function networkFirstWithFallback(request, cacheName) {
   const cache = await caches.open(cacheName)
-  const cached = await cache.match(request)
-
-  const networkFetch = fetch(request)
-    .then((response) => {
-      if (response.ok) cache.put(request, response.clone())
-      return response
+  try {
+    const response = await fetch(request)
+    if (response.ok) cache.put(request, response.clone())
+    return response
+  } catch {
+    const cached = await cache.match(request)
+    return cached ?? new Response(JSON.stringify({ error: 'offline' }), {
+      headers: { 'Content-Type': 'application/json' },
+      status: 503,
     })
-    .catch(() => null)
-
-  return cached ?? (await networkFetch) ?? new Response(JSON.stringify({ error: 'offline' }), {
-    headers: { 'Content-Type': 'application/json' },
-    status: 503,
-  })
+  }
 }
 
 async function audioCacheFirst(request) {
@@ -129,17 +127,20 @@ async function cacheFirstWithFallback(request, cacheName) {
 self.addEventListener('message', (event) => {
   if (event.data?.type !== 'CACHE_AUDIO') return
   const { url, episodeId } = event.data
-  const client = event.source
+  // DownloadsContext transfers a MessageChannel port so reply goes back to the
+  // right listener. Fall back to event.source for callers that don't transfer one.
+  const replyPort = event.ports[0]
+  const reply = (msg) => replyPort ? replyPort.postMessage(msg) : event.source?.postMessage(msg)
 
   event.waitUntil(
     caches.open(AUDIO_CACHE)
       .then(async (cache) => {
         const response = await fetch(url, { mode: 'no-cors' })
         await cache.put(url, response)
-        client?.postMessage({ type: 'AUDIO_CACHED', episodeId })
+        reply({ type: 'AUDIO_CACHED', episodeId })
       })
       .catch((err) => {
-        client?.postMessage({ type: 'AUDIO_ERROR', episodeId, error: String(err) })
+        reply({ type: 'AUDIO_ERROR', episodeId, error: String(err) })
       })
   )
 })

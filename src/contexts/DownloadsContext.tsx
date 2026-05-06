@@ -11,6 +11,7 @@ import { addDownload, getAllDownloads, deleteDownload, clearAllDownloads } from 
 
 interface DownloadsState {
   downloads: DownloadEntry[]
+  pending: Map<string, DownloadEntry>
   statuses: Map<string, DownloadStatus>
   progress: Map<string, number>
   loaded: boolean
@@ -18,9 +19,10 @@ interface DownloadsState {
 
 type DownloadsAction =
   | { type: 'INIT'; downloads: DownloadEntry[] }
-  | { type: 'SET_STATUS'; episodeId: string; status: DownloadStatus }
+  | { type: 'ADD_PENDING'; entry: DownloadEntry }
   | { type: 'SET_PROGRESS'; episodeId: string; progress: number }
   | { type: 'ADD'; entry: DownloadEntry }
+  | { type: 'ERROR_PENDING'; episodeId: string }
   | { type: 'REMOVE'; episodeId: string }
   | { type: 'CLEAR' }
 
@@ -33,10 +35,14 @@ function downloadsReducer(state: DownloadsState, action: DownloadsAction): Downl
         statuses: new Map(action.downloads.map((d) => [d.episodeId, 'done'])),
         loaded: true,
       }
-    case 'SET_STATUS': {
+    case 'ADD_PENDING': {
+      const pending = new Map(state.pending)
+      pending.set(action.entry.episodeId, action.entry)
       const statuses = new Map(state.statuses)
-      statuses.set(action.episodeId, action.status)
-      return { ...state, statuses }
+      statuses.set(action.entry.episodeId, 'downloading')
+      const progress = new Map(state.progress)
+      progress.set(action.entry.episodeId, 0)
+      return { ...state, pending, statuses, progress }
     }
     case 'SET_PROGRESS': {
       const progress = new Map(state.progress)
@@ -44,6 +50,8 @@ function downloadsReducer(state: DownloadsState, action: DownloadsAction): Downl
       return { ...state, progress }
     }
     case 'ADD': {
+      const pending = new Map(state.pending)
+      pending.delete(action.entry.episodeId)
       const statuses = new Map(state.statuses)
       statuses.set(action.entry.episodeId, 'done')
       const progress = new Map(state.progress)
@@ -53,26 +61,45 @@ function downloadsReducer(state: DownloadsState, action: DownloadsAction): Downl
         downloads: [action.entry, ...state.downloads.filter((d) => d.episodeId !== action.entry.episodeId)],
         statuses,
         progress,
+        pending,
       }
     }
+    case 'ERROR_PENDING': {
+      const pending = new Map(state.pending)
+      pending.delete(action.episodeId)
+      const statuses = new Map(state.statuses)
+      statuses.set(action.episodeId, 'error')
+      const progress = new Map(state.progress)
+      progress.delete(action.episodeId)
+      return { ...state, pending, statuses, progress }
+    }
     case 'REMOVE': {
+      const pending = new Map(state.pending)
+      pending.delete(action.episodeId)
       const statuses = new Map(state.statuses)
       statuses.delete(action.episodeId)
       return {
         ...state,
         downloads: state.downloads.filter((d) => d.episodeId !== action.episodeId),
         statuses,
+        pending,
       }
     }
     case 'CLEAR':
-      return { ...state, downloads: [], statuses: new Map(), progress: new Map() }
+      return { ...state, downloads: [], statuses: new Map(), progress: new Map(), pending: new Map() }
     default:
       return state
   }
 }
 
+export interface PendingDownload {
+  entry: DownloadEntry
+  progress: number
+}
+
 interface DownloadsContextValue {
   downloads: DownloadEntry[]
+  pendingDownloads: PendingDownload[]
   loaded: boolean
   getStatus: (episodeId: string) => DownloadStatus
   getProgress: (episodeId: string) => number
@@ -87,6 +114,7 @@ const DownloadsContext = createContext<DownloadsContextValue | null>(null)
 export function DownloadsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(downloadsReducer, {
     downloads: [],
+    pending: new Map(),
     statuses: new Map(),
     progress: new Map(),
     loaded: false,
@@ -113,12 +141,14 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
     [state.statuses]
   )
 
+  const pendingDownloads: PendingDownload[] = Array.from(state.pending.entries()).map(([id, entry]) => ({
+    entry,
+    progress: state.progress.get(id) ?? 0,
+  }))
+
   const downloadEpisode = useCallback(async (episode: Episode) => {
     const id = episode.id
     if (state.statuses.get(id) === 'downloading' || state.statuses.get(id) === 'done') return
-
-    dispatch({ type: 'SET_STATUS', episodeId: id, status: 'downloading' })
-    dispatch({ type: 'SET_PROGRESS', episodeId: id, progress: 0 })
 
     const entry: DownloadEntry = {
       episodeId: id,
@@ -129,6 +159,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       img: episode.media.img_360x360 ?? episode.programa.img_mini,
       duracion: episode.duracion,
     }
+
+    dispatch({ type: 'ADD_PENDING', entry })
 
     // Try direct fetch first — works when the CDN has CORS headers
     try {
@@ -144,7 +176,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-        // Slice exactly the chunk's own bytes out of the underlying ArrayBuffer
         chunks.push(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength))
         received += value.length
         if (total > 0) {
@@ -164,7 +195,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
     const sw = navigator.serviceWorker?.controller
     if (!sw) {
       console.error('Service worker not available for download fallback')
-      dispatch({ type: 'SET_STATUS', episodeId: id, status: 'error' })
+      dispatch({ type: 'ERROR_PENDING', episodeId: id })
       return
     }
 
@@ -176,7 +207,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
           dispatch({ type: 'ADD', entry })
         } else {
           console.error('SW audio cache error:', e.data?.error)
-          dispatch({ type: 'SET_STATUS', episodeId: id, status: 'error' })
+          dispatch({ type: 'ERROR_PENDING', episodeId: id })
         }
         resolve()
       }
@@ -196,7 +227,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
 
   return (
     <DownloadsContext.Provider
-      value={{ downloads: state.downloads, loaded: state.loaded, getStatus, getProgress, isDownloaded, downloadEpisode, removeDownload, clearAll }}
+      value={{ downloads: state.downloads, pendingDownloads, loaded: state.loaded, getStatus, getProgress, isDownloaded, downloadEpisode, removeDownload, clearAll }}
     >
       {children}
     </DownloadsContext.Provider>

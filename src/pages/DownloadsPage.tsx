@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Download, Trash2, HardDrive } from 'lucide-react'
+import { Download, Trash2, HardDrive, Loader2 } from 'lucide-react'
 import { useDownloads } from '@/contexts/DownloadsContext'
 import { usePlayer } from '@/contexts/PlayerContext'
 import { EpisodeRowCompact } from '@/components/episodes/EpisodeRow'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import { formatBytes } from '@/lib/utils'
 
 export function DownloadsPage() {
-  const { downloads, loaded, removeDownload, clearAll } = useDownloads()
+  const { downloads, pendingDownloads, loaded, removeDownload, clearAll } = useDownloads()
   const { playEpisode } = usePlayer()
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
@@ -30,7 +31,9 @@ export function DownloadsPage() {
     )
   }
 
-  if (downloads.length === 0) {
+  const isEmpty = downloads.length === 0 && pendingDownloads.length === 0
+
+  if (isEmpty) {
     return (
       <div className="flex flex-col items-center justify-center py-24 px-4 text-center gap-4">
         <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
@@ -64,42 +67,72 @@ export function DownloadsPage() {
             </span>
           </div>
         </div>
-        {!confirmClear ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive flex-shrink-0"
-            onClick={() => setConfirmClear(true)}
-          >
-            <Trash2 className="h-4 w-4 mr-1" />
-            Eliminar todo
-          </Button>
-        ) : (
-          <div className="flex items-center gap-2 flex-shrink-0">
+        {downloads.length > 0 && (
+          !confirmClear ? (
             <Button
-              variant="destructive"
+              variant="ghost"
               size="sm"
-              onClick={async () => {
-                await clearAll()
-                setConfirmClear(false)
-              }}
+              className="text-destructive hover:text-destructive flex-shrink-0"
+              onClick={() => setConfirmClear(true)}
             >
-              Confirmar
+              <Trash2 className="h-4 w-4 mr-1" />
+              Eliminar todo
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setConfirmClear(false)}>
-              Cancelar
-            </Button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={async () => {
+                  await clearAll()
+                  setConfirmClear(false)
+                }}
+              >
+                Confirmar
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmClear(false)}>
+                Cancelar
+              </Button>
+            </div>
+          )
         )}
       </div>
 
-      {/* List */}
+      {/* In-progress downloads */}
+      {pendingDownloads.length > 0 && (
+        <div className="border-b border-border">
+          {pendingDownloads.map(({ entry, progress }) => (
+            <div
+              key={entry.episodeId}
+              className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0"
+            >
+              <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                {entry.img && (
+                  <img src={entry.img} alt="" loading="lazy" className="w-full h-full object-cover" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium line-clamp-1 text-foreground">{entry.titulo}</p>
+                <p className="text-xs text-muted-foreground truncate mb-1.5">{entry.programaNombre}</p>
+                <div className="flex items-center gap-2">
+                  <Progress value={progress} className="flex-1 h-1" />
+                  <span className="text-xs text-muted-foreground tabular-nums w-8 text-right">
+                    {progress > 0 ? `${progress}%` : '…'}
+                  </span>
+                </div>
+              </div>
+              <Loader2 className="h-4 w-4 text-muted-foreground animate-spin flex-shrink-0" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Completed downloads */}
       <div>
         {downloads.map((dl) => (
           <div
             key={dl.episodeId}
             onClick={() => {
-              // play from downloads using stored metadata
               playEpisode({
                 id: dl.episodeId,
                 titulo: dl.titulo,
