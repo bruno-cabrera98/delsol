@@ -114,3 +114,12 @@ export interface AppPreferences {
   lastEpisodeId: string | null
   lastPosition: number
 }
+
+export interface PlaybackEntry {
+  episodeId: string
+  position: number  // seconds
+  duration: number  // seconds
+  updatedAt: number // ms timestamp
+}
+
+export type ListenState = 'unplayed' | 'started' | 'finished'

@@ -1,4 +1,5 @@
 import { HashRouter, Routes, Route } from 'react-router-dom'
+import { PlaybackProvider } from '@/contexts/PlaybackContext'
 import { PlayerProvider } from '@/contexts/PlayerContext'
 import { FavoritesProvider } from '@/contexts/FavoritesContext'
 import { DownloadsProvider } from '@/contexts/DownloadsContext'
@@ -10,6 +11,7 @@ import { SettingsPage } from '@/pages/SettingsPage'
 
 export default function App() {
   return (
+    <PlaybackProvider>
     <PlayerProvider>
       <FavoritesProvider>
         <DownloadsProvider>
@@ -26,5 +28,6 @@ export default function App() {
         </DownloadsProvider>
       </FavoritesProvider>
     </PlayerProvider>
+    </PlaybackProvider>
   )
 }

@@ -10,6 +10,7 @@ import {
 import type { PlayerState, PlayerAction, Episode, PlayerStatus } from '@/types'
 import { loadPreferences, savePreferences, loadLastEpisode, saveLastEpisode } from '@/lib/storage'
 import { getBlob } from '@/lib/db'
+import { usePlayback } from '@/contexts/PlaybackContext'
 
 function playerReducer(state: PlayerState, action: PlayerAction): PlayerState {
   switch (action.type) {
@@ -72,6 +73,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     volume: prefs.volume,
     isExpanded: false,
   })
+
+  const { recordPlay } = usePlayback()
 
   const audioRef = useRef<HTMLAudioElement>(new Audio())
   const blobUrlRef = useRef<string | null>(null)
@@ -155,11 +158,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!state.episode) return
 
     const save = () => {
+      const pos = audioRef.current.currentTime
+      const dur = audioRef.current.duration || 0
       savePreferences({
         lastEpisodeId: state.episode?.id ?? null,
-        lastPosition: audioRef.current.currentTime,
+        lastPosition: pos,
         volume: state.volume,
       })
+      if (state.episode?.id) recordPlay(state.episode.id, pos, dur)
     }
 
     if (state.status === 'playing') {

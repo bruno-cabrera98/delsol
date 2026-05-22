@@ -3,7 +3,36 @@ import { cn } from '@/lib/utils'
 import { formatDate } from '@/lib/utils'
 import { usePlayer } from '@/contexts/PlayerContext'
 import { useDownloads } from '@/contexts/DownloadsContext'
-import type { Episode } from '@/types'
+import { usePlayback } from '@/contexts/PlaybackContext'
+import type { Episode, ListenState } from '@/types'
+
+function ListenBadge({ state, progress }: { state: ListenState; progress: number }) {
+  if (state === 'unplayed') return null
+  if (state === 'finished') {
+    return (
+      <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-background flex items-center justify-center shadow-sm">
+        <CheckCircle className="w-3.5 h-3.5 text-primary" />
+      </div>
+    )
+  }
+  const r = 6
+  const circ = 2 * Math.PI * r
+  return (
+    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-background shadow-sm">
+      <svg viewBox="0 0 16 16" className="w-full h-full -rotate-90">
+        <circle cx="8" cy="8" r={r} fill="none" strokeWidth="2.5" className="stroke-primary/25" />
+        <circle
+          cx="8" cy="8" r={r}
+          fill="none"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          className="stroke-primary"
+          strokeDasharray={`${progress * circ} ${circ}`}
+        />
+      </svg>
+    </div>
+  )
+}
 
 interface Props {
   episode: Episode
@@ -13,6 +42,9 @@ interface Props {
 export function EpisodeRow({ episode, showProgramName = false }: Props) {
   const { state, playEpisode } = usePlayer()
   const { getStatus, getProgress, isDownloaded, downloadEpisode, removeDownload } = useDownloads()
+  const { getListenState, getProgress: getListenProgress } = usePlayback()
+  const listenState = getListenState(episode.id)
+  const listenProgress = listenState === 'started' ? getListenProgress(episode.id) : 0
 
   const isActive = state.episode?.id === episode.id
   const isPlaying = isActive && state.status === 'playing'
@@ -63,6 +95,7 @@ export function EpisodeRow({ episode, showProgramName = false }: Props) {
             <div className="w-full h-full bg-muted" />
           )}
         </div>
+        <ListenBadge state={listenState} progress={listenProgress} />
       </div>
 
       {/* Info */}
