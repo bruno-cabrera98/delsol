@@ -25,21 +25,25 @@ export function EpisodeList({
   onLoadMore,
 }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const loadingMoreRef = useRef(loadingMore)
+  const onLoadMoreRef = useRef(onLoadMore)
+  useEffect(() => { loadingMoreRef.current = loadingMore }, [loadingMore])
+  useEffect(() => { onLoadMoreRef.current = onLoadMore }, [onLoadMore])
 
   useEffect(() => {
     const el = sentinelRef.current
     if (!el || !hasMore) return
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !loadingMore) {
-          onLoadMore()
+        if (entries[0].isIntersecting && !loadingMoreRef.current) {
+          onLoadMoreRef.current()
         }
       },
       { rootMargin: '200px' }
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasMore, loadingMore, onLoadMore])
+  }, [hasMore])
 
   if (loading) {
     return (
