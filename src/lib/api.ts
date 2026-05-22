@@ -25,13 +25,12 @@ export async function fetchShowDetail(slug: string): Promise<ShowDetail> {
 export async function fetchEpisodes(
   slug: string,
   section: string | null,
-  page: number,
-  recordPage = 20
+  page: number
 ): Promise<PaginatedResponse> {
   const base = section
     ? `${BASE}/programas/${slug}/${section}/contenido`
     : `${BASE}/programas/${slug}/contenido`
-  const res = await fetch(`${base}?page=${page}&recordPage=${recordPage}`)
+  const res = await fetch(`${base}/${page}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }
