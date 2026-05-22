@@ -24,10 +24,7 @@ export function useShows() {
   const fetched = useRef(false)
 
   useEffect(() => {
-    if (fetched.current || cache.current) {
-      fetched.current = true
-      return
-    }
+    if (fetched.current) return
     fetched.current = true
 
     fetchShows()

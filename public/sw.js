@@ -51,6 +51,12 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Same-origin API calls: network-first (must be before the shell catch-all)
+  if (url.origin === location.origin && url.pathname.startsWith('/apisol/')) {
+    event.respondWith(networkFirstWithFallback(request, API_CACHE))
+    return
+  }
+
   // Same-origin (app shell): cache-first
   if (url.origin === location.origin || request.mode === 'navigate') {
     event.respondWith(shellCacheFirst(request))
