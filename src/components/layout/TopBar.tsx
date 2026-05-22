@@ -14,7 +14,9 @@ export function TopBar() {
   useEffect(() => {
     const handler = (e: Event) => {
       e.preventDefault()
-      setInstallPrompt(e as BeforeInstallPromptEvent)
+      const prompt = e as BeforeInstallPromptEvent
+      setInstallPrompt(prompt)
+      window.__delsol_installPrompt = prompt
     }
     window.addEventListener('beforeinstallprompt', handler)
     window.addEventListener('appinstalled', () => setInstalled(true))
@@ -25,7 +27,10 @@ export function TopBar() {
     if (!installPrompt) return
     await installPrompt.prompt()
     const { outcome } = await installPrompt.userChoice
-    if (outcome === 'accepted') setInstallPrompt(null)
+    if (outcome === 'accepted') {
+      setInstallPrompt(null)
+      window.__delsol_installPrompt = undefined
+    }
   }
 
   return (

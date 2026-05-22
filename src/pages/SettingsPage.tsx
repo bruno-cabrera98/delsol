@@ -71,9 +71,11 @@ export function SettingsPage() {
               variant="outline"
               className="gap-1.5 flex-shrink-0"
               onClick={async () => {
-                if (window.__delsol_installPrompt) {
-                  await window.__delsol_installPrompt.prompt()
-                }
+                const p = window.__delsol_installPrompt
+                if (!p) return
+                await p.prompt()
+                const { outcome } = await p.userChoice
+                if (outcome === 'accepted') window.__delsol_installPrompt = undefined
               }}
             >
               <Download className="h-3.5 w-3.5" />
