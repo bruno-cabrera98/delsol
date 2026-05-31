@@ -122,6 +122,12 @@ export function SettingsPage() {
             delsol.uy
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-muted-foreground">Versión</span>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {__APP_VERSION__} · {__BUILD_DATE__}
+            </span>
+          </div>
         </div>
       </section>
     </div>
