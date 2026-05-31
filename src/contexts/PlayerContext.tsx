@@ -11,6 +11,7 @@ import type { PlayerState, PlayerAction, Episode, PlayerStatus } from '@/types'
 import { loadPreferences, savePreferences, loadLastEpisode, saveLastEpisode } from '@/lib/storage'
 import { getBlob } from '@/lib/db'
 import { usePlayback } from '@/contexts/PlaybackContext'
+import { useQueue } from '@/contexts/QueueContext'
 
 function playerReducer(state: PlayerState, action: PlayerAction): PlayerState {
   switch (action.type) {
@@ -52,6 +53,8 @@ function playerReducer(state: PlayerState, action: PlayerAction): PlayerState {
 interface PlayerContextValue {
   state: PlayerState
   playEpisode: (episode: Episode) => Promise<void>
+  playNext: () => void
+  playPrev: () => void
   togglePlay: () => void
   seekTo: (seconds: number) => void
   skip: (seconds: number) => void
@@ -74,11 +77,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     isExpanded: false,
   })
 
-  const { recordPlay } = usePlayback()
+  const { recordPlay, addToHistory, getPosition, history } = usePlayback()
+  const { dequeue } = useQueue()
 
   const audioRef = useRef<HTMLAudioElement>(new Audio())
   const blobUrlRef = useRef<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Refs so onEnded (set up once) always calls the latest functions
+  const dequeueRef = useRef(dequeue)
+  const playEpisodeRef = useRef<(episode: Episode) => Promise<void>>(async () => {})
+  const playNextRef = useRef<() => void>(() => {})
+  const playPrevRef = useRef<() => void>(() => {})
+  useEffect(() => { dequeueRef.current = dequeue }, [dequeue])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -88,7 +99,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const onLoadedMetadata = () => dispatch({ type: 'SET_DURATION', duration: audio.duration })
     const onPlaying = () => dispatch({ type: 'SET_STATUS', status: 'playing' })
     const onPause = () => dispatch({ type: 'SET_STATUS', status: 'paused' })
-    const onEnded = () => dispatch({ type: 'SET_STATUS', status: 'idle' })
+    const onEnded = () => {
+      dispatch({ type: 'SET_STATUS', status: 'idle' })
+      const next = dequeueRef.current()
+      if (next) Promise.resolve().then(() => playEpisodeRef.current(next))
+    }
     const onError = () => dispatch({ type: 'SET_STATUS', status: 'error' })
     const onWaiting = () => dispatch({ type: 'SET_STATUS', status: 'loading' })
 
@@ -183,6 +198,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const playEpisode = useCallback(async (episode: Episode) => {
     const audio = audioRef.current
 
+    // Record history before audio setup (fire-and-forget)
+    addToHistory(episode)
+
     if (blobUrlRef.current) {
       URL.revokeObjectURL(blobUrlRef.current)
       blobUrlRef.current = null
@@ -204,6 +222,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
 
     audio.volume = state.volume
+
+    // Resume from saved position after metadata loads
+    const savedPos = getPosition(episode.id)
+    const onMeta = () => {
+      if (savedPos > 0) audio.currentTime = savedPos
+      audio.removeEventListener('loadedmetadata', onMeta)
+    }
+    audio.addEventListener('loadedmetadata', onMeta)
+
     audio.load()
 
     try {
@@ -228,8 +255,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler('seekforward', () => {
         audio.currentTime = Math.min(audio.duration || Infinity, audio.currentTime + 10)
       })
+      navigator.mediaSession.setActionHandler('previoustrack', () => playPrevRef.current())
+      navigator.mediaSession.setActionHandler('nexttrack', () => playNextRef.current())
     }
-  }, [state.volume])
+  }, [state.volume, addToHistory, getPosition])
+
+  const playNext = useCallback(() => {
+    const next = dequeue()
+    if (next) playEpisode(next)
+  }, [dequeue, playEpisode])
+
+  const playPrev = useCallback(() => {
+    const prev = history.find((h) => h.episodeId !== state.episode?.id)
+    if (prev) playEpisode(prev.episode)
+  }, [history, state.episode, playEpisode])
+
+  // Keep refs current so onEnded and MediaSession can always call the latest versions
+  useEffect(() => { playEpisodeRef.current = playEpisode }, [playEpisode])
+  useEffect(() => { playNextRef.current = playNext }, [playNext])
+  useEffect(() => { playPrevRef.current = playPrev }, [playPrev])
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current
@@ -261,7 +305,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   return (
     <PlayerContext.Provider
-      value={{ state, playEpisode, togglePlay, seekTo, skip, setVolume, toggleExpand, closePlayer }}
+      value={{ state, playEpisode, playNext, playPrev, togglePlay, seekTo, skip, setVolume, toggleExpand, closePlayer }}
     >
       {children}
     </PlayerContext.Provider>

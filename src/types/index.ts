@@ -122,4 +122,10 @@ export interface PlaybackEntry {
   updatedAt: number // ms timestamp
 }
 
+export interface HistoryEntry {
+  episodeId: string
+  episode: Episode  // snapshot at time of play
+  playedAt: number  // ms timestamp
+}
+
 export type ListenState = 'unplayed' | 'started' | 'finished'

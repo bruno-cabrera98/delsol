@@ -4,6 +4,7 @@ const PREFS_KEY = 'delsol-prefs'
 const FAVORITES_KEY = 'delsol-favorites'
 const SHOWS_CACHE_KEY = 'delsol-shows-cache'
 const LAST_EPISODE_KEY = 'delsol-last-episode'
+const QUEUE_KEY = 'delsol-queue'
 const CACHE_TTL = 60 * 60 * 1000
 
 const DEFAULT_PREFS: AppPreferences = {
@@ -86,6 +87,24 @@ export function loadShowsCache<T>(): T | null {
 export function saveShowsCache<T>(data: T): void {
   try {
     localStorage.setItem(SHOWS_CACHE_KEY, JSON.stringify({ data, ts: Date.now() }))
+  } catch {
+    // ignore
+  }
+}
+
+export function loadQueue(): Episode[] {
+  try {
+    const raw = localStorage.getItem(QUEUE_KEY)
+    if (!raw) return []
+    return JSON.parse(raw)
+  } catch {
+    return []
+  }
+}
+
+export function saveQueue(queue: Episode[]): void {
+  try {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queue))
   } catch {
     // ignore
   }

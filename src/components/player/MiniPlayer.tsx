@@ -1,9 +1,11 @@
-import { Play, Pause, ChevronUp } from 'lucide-react'
+import { Play, Pause, ChevronUp, SkipForward } from 'lucide-react'
 import { usePlayer } from '@/contexts/PlayerContext'
+import { useQueue } from '@/contexts/QueueContext'
 import { Progress } from '@/components/ui/progress'
 
 export function MiniPlayer() {
-  const { state, togglePlay, toggleExpand } = usePlayer()
+  const { state, togglePlay, toggleExpand, playNext } = usePlayer()
+  const { queue } = useQueue()
   const { episode, status, currentTime, duration } = state
 
   if (!episode) return null
@@ -51,6 +53,16 @@ export function MiniPlayer() {
           >
             {isPlaying ? <Pause className="h-4 w-4 fill-white" /> : <Play className="h-4 w-4 fill-white" />}
           </button>
+
+          {queue.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); playNext() }}
+              className="h-10 w-10 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Siguiente en cola"
+            >
+              <SkipForward className="h-4 w-4" />
+            </button>
+          )}
 
           <button
             onClick={toggleExpand}

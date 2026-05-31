@@ -1,10 +1,14 @@
+import { useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Play, Pause, RotateCcw, RotateCw, Volume2, ChevronDown, Download, Trash2, Loader2, AlertCircle } from 'lucide-react'
+import { Play, Pause, RotateCcw, RotateCw, Volume2, ChevronDown, Download, Trash2, Loader2, AlertCircle, SkipBack, SkipForward, ListMusic, X } from 'lucide-react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
 import { usePlayer } from '@/contexts/PlayerContext'
+import { usePlayback } from '@/contexts/PlaybackContext'
+import { useQueue } from '@/contexts/QueueContext'
 import { useDownloads } from '@/contexts/DownloadsContext'
 import { formatTime } from '@/lib/utils'
+import type { Episode } from '@/types'
 
 function SkipButton({
   icon: Icon,
@@ -36,9 +40,15 @@ function SkipButton({
 }
 
 export function FullPlayer() {
-  const { state, togglePlay, seekTo, skip, setVolume, closePlayer } = usePlayer()
+  const { state, togglePlay, seekTo, skip, setVolume, closePlayer, playNext, playPrev } = usePlayer()
+  const { history } = usePlayback()
+  const { queue, remove: removeFromQueue, clear: clearQueue } = useQueue()
   const { isDownloaded, downloadEpisode, removeDownload, getStatus, getProgress } = useDownloads()
   const { episode, status, currentTime, duration, volume, isExpanded } = state
+  const [queueOpen, setQueueOpen] = useState(false)
+
+  const hasPrev = history.some((h) => h.episodeId !== episode?.id)
+  const hasNext = queue.length > 0
 
   if (!episode) return null
 
@@ -76,7 +86,13 @@ export function FullPlayer() {
                 {episode.seccion?.nombre ?? episode.programa.nombre}
               </p>
             </div>
-            <div className="w-10" />
+            <button
+              onClick={() => setQueueOpen((o) => !o)}
+              className={`h-10 w-10 flex items-center justify-center rounded-full transition-colors ${queueOpen ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              aria-label="Ver cola"
+            >
+              <ListMusic className="h-5 w-5" />
+            </button>
           </div>
 
           {/* Artwork */}
@@ -143,6 +159,28 @@ export function FullPlayer() {
               </div>
             </div>
 
+            {/* Prev / Next track */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={playPrev}
+                disabled={!hasPrev}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground disabled:opacity-30 hover:text-foreground transition-colors disabled:cursor-default"
+                aria-label="Episodio anterior"
+              >
+                <SkipBack className="h-4 w-4" />
+                Anterior
+              </button>
+              <button
+                onClick={playNext}
+                disabled={!hasNext}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground disabled:opacity-30 hover:text-foreground transition-colors disabled:cursor-default"
+                aria-label="Siguiente en cola"
+              >
+                Siguiente
+                <SkipForward className="h-4 w-4" />
+              </button>
+            </div>
+
             {/* Controls */}
             <div className="flex items-center justify-center gap-6">
               <SkipButton icon={RotateCcw} label="30" onClick={() => skip(-30)} aria="Retroceder 30 segundos" size="sm" />
@@ -180,6 +218,55 @@ export function FullPlayer() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Queue panel — slides up from bottom */}
+        <div
+          className={`absolute inset-x-0 bottom-0 h-1/2 bg-background border-t border-border overflow-y-auto transform transition-transform duration-300 ease-in-out ${queueOpen ? 'translate-y-0' : 'translate-y-full'}`}
+          onTouchEnd={(e) => {
+            const touch = e.changedTouches[0]
+            if (touch && touch.clientY - (e.currentTarget.getBoundingClientRect().top) > 50) {
+              setQueueOpen(false)
+            }
+          }}
+        >
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border sticky top-0 bg-background z-10">
+            <span className="text-sm font-semibold">
+              Cola {queue.length > 0 ? `(${queue.length})` : ''}
+            </span>
+            <button
+              onClick={clearQueue}
+              className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+              aria-label="Vaciar cola"
+            >
+              Vaciar cola
+            </button>
+          </div>
+          {queue.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-8">La cola está vacía</p>
+          ) : (
+            queue.map((ep: Episode) => (
+              <div key={ep.id} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0">
+                <img
+                  src={ep.media.img_360x360 ?? ep.programa.img_mini}
+                  alt=""
+                  className="w-10 h-10 rounded-md object-cover flex-shrink-0 bg-muted"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{ep.titulo}</p>
+                  <p className="text-xs text-muted-foreground truncate">{ep.programa.nombre}</p>
+                </div>
+                <button
+                  onClick={() => removeFromQueue(ep.id)}
+                  className="h-8 w-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                  aria-label="Quitar de la cola"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -1,9 +1,11 @@
-import { Play, Pause, Download, CheckCircle, Trash2, Loader2, AlertCircle } from 'lucide-react'
+import { Play, Pause, Download, CheckCircle, Trash2, Loader2, AlertCircle, ListPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatDate } from '@/lib/utils'
 import { usePlayer } from '@/contexts/PlayerContext'
 import { useDownloads } from '@/contexts/DownloadsContext'
 import { usePlayback } from '@/contexts/PlaybackContext'
+import { useQueue } from '@/contexts/QueueContext'
+import { ProgressArc } from '@/components/ui/ProgressArc'
 import type { Episode, ListenState } from '@/types'
 
 function ListenBadge({ state, progress }: { state: ListenState; progress: number }) {
@@ -15,21 +17,9 @@ function ListenBadge({ state, progress }: { state: ListenState; progress: number
       </div>
     )
   }
-  const r = 6
-  const circ = 2 * Math.PI * r
   return (
     <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-background shadow-sm">
-      <svg viewBox="0 0 16 16" className="w-full h-full -rotate-90">
-        <circle cx="8" cy="8" r={r} fill="none" strokeWidth="2.5" className="stroke-primary/25" />
-        <circle
-          cx="8" cy="8" r={r}
-          fill="none"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          className="stroke-primary"
-          strokeDasharray={`${progress * circ} ${circ}`}
-        />
-      </svg>
+      <ProgressArc progress={progress} />
     </div>
   )
 }
@@ -43,6 +33,8 @@ export function EpisodeRow({ episode, showProgramName = false }: Props) {
   const { state, playEpisode } = usePlayer()
   const { getStatus, getProgress, isDownloaded, downloadEpisode, removeDownload } = useDownloads()
   const { getListenState, getProgress: getListenProgress } = usePlayback()
+  const { enqueue, queue } = useQueue()
+  const isInQueue = queue.some((e) => e.id === episode.id)
   const listenState = getListenState(episode.id)
   const listenProgress = listenState === 'started' ? getListenProgress(episode.id) : 0
 
@@ -126,6 +118,18 @@ export function EpisodeRow({ episode, showProgramName = false }: Props) {
 
       {/* Actions */}
       <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          onClick={(e) => { e.stopPropagation(); enqueue(episode) }}
+          className={cn(
+            'h-8 w-8 flex items-center justify-center rounded-full transition-colors',
+            isInQueue ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+          )}
+          aria-label="Agregar a la cola"
+          title={isInQueue ? 'En la cola' : 'Agregar a la cola'}
+        >
+          <ListPlus className="h-4 w-4" />
+        </button>
+
         <button
           onClick={handleDownload}
           className={cn(

@@ -1,8 +1,8 @@
 import { openDB, type IDBPDatabase } from 'idb'
-import type { DownloadEntry, PlaybackEntry } from '@/types'
+import type { DownloadEntry, PlaybackEntry, HistoryEntry } from '@/types'
 
 const DB_NAME = 'delsol-db'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 let dbPromise: Promise<IDBPDatabase> | null = null
 
@@ -16,6 +16,9 @@ function getDb(): Promise<IDBPDatabase> {
         }
         if (oldVersion < 2) {
           db.createObjectStore('playback')
+        }
+        if (oldVersion < 3) {
+          db.createObjectStore('history')
         }
       },
     })
@@ -74,4 +77,24 @@ export async function savePlayback(entry: PlaybackEntry): Promise<void> {
 export async function loadAllPlayback(): Promise<PlaybackEntry[]> {
   const db = await getDb()
   return db.getAll('playback')
+}
+
+export async function addHistoryEntry(entry: HistoryEntry): Promise<void> {
+  const db = await getDb()
+  await db.put('history', entry, entry.episodeId)
+}
+
+export async function getAllHistory(): Promise<HistoryEntry[]> {
+  const db = await getDb()
+  return db.getAll('history')
+}
+
+export async function deleteHistoryEntry(episodeId: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('history', episodeId)
+}
+
+export async function clearHistory(): Promise<void> {
+  const db = await getDb()
+  await db.clear('history')
 }

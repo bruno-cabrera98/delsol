@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Download, Settings } from 'lucide-react'
+import { Home, Download, Settings, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const links = [
   { to: '/', label: 'Inicio', Icon: Home },
   { to: '/downloads', label: 'Descargas', Icon: Download },
+  { to: '/history', label: 'Historial', Icon: History },
   { to: '/settings', label: 'Ajustes', Icon: Settings },
 ]
 
