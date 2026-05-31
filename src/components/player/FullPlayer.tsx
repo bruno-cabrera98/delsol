@@ -231,41 +231,63 @@ export function FullPlayer() {
           }}
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-border sticky top-0 bg-background z-10">
-            <span className="text-sm font-semibold">
-              Cola {queue.length > 0 ? `(${queue.length})` : ''}
-            </span>
-            <button
-              onClick={clearQueue}
-              className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-              aria-label="Vaciar cola"
-            >
-              Vaciar cola
-            </button>
+            <span className="text-sm font-semibold">Cola</span>
+            {queue.length > 0 && (
+              <button
+                onClick={clearQueue}
+                className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                aria-label="Vaciar cola"
+              >
+                Vaciar cola
+              </button>
+            )}
           </div>
-          {queue.length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground py-8">La cola está vacía</p>
-          ) : (
-            queue.map((ep: Episode) => (
-              <div key={ep.id} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0">
-                <img
-                  src={ep.media.img_360x360 ?? ep.programa.img_mini}
-                  alt=""
-                  className="w-10 h-10 rounded-md object-cover flex-shrink-0 bg-muted"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{ep.titulo}</p>
-                  <p className="text-xs text-muted-foreground truncate">{ep.programa.nombre}</p>
+
+          {/* Now playing */}
+          <p className="px-4 pt-3 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            Reproduciendo ahora
+          </p>
+          <div className="flex items-center gap-3 px-4 py-3 bg-primary/5 border-b border-border">
+            <img
+              src={episode.media.img_360x360 ?? episode.programa.img_mini}
+              alt=""
+              className="w-10 h-10 rounded-md object-cover flex-shrink-0 bg-muted"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-primary truncate">{episode.titulo}</p>
+              <p className="text-xs text-muted-foreground truncate">{episode.programa.nombre}</p>
+            </div>
+          </div>
+
+          {/* Up next */}
+          {queue.length > 0 && (
+            <>
+              <p className="px-4 pt-3 pb-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                A continuación
+              </p>
+              {queue.map((ep: Episode) => (
+                <div key={ep.id} className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0">
+                  <img
+                    src={ep.media.img_360x360 ?? ep.programa.img_mini}
+                    alt=""
+                    className="w-10 h-10 rounded-md object-cover flex-shrink-0 bg-muted"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{ep.titulo}</p>
+                    <p className="text-xs text-muted-foreground truncate">{ep.programa.nombre}</p>
+                  </div>
+                  <button
+                    onClick={() => removeFromQueue(ep.id)}
+                    className="h-8 w-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                    aria-label="Quitar de la cola"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => removeFromQueue(ep.id)}
-                  className="h-8 w-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
-                  aria-label="Quitar de la cola"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))
+              ))}
+            </>
           )}
         </div>
       </DialogContent>
